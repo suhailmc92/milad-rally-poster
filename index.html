@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Milad Rally Poster Generator</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0f172a; margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; color: #fff; }
+    
+    .card { background: #1e293b; width: 100%; max-width: 500px; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; }
+    h2 { margin: 0 0 6px 0; color: #f8fafc; font-size: 20px; }
+    p.subtitle { margin: 0 0 16px 0; color: #94a3b8; font-size: 14px; }
+
+    .banner-wrapper {
+      position: relative;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #0f172a;
+      border: 1px solid #334155;
+    }
+    canvas { display: block; width: 100%; height: auto; cursor: grab; }
+    canvas:active { cursor: grabbing; }
+
+    .controls { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    input[type="file"] { display: none; }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+    .btn-upload { background: #2563eb; color: #ffffff; }
+    .btn-upload:hover { background: #1d4ed8; }
+    
+    /* Social Share Buttons */
+    .btn-whatsapp { background: #25D366; color: #ffffff; }
+    .btn-whatsapp:hover { background: #1da851; }
+    
+    .btn-instagram { 
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); 
+      color: #ffffff; 
+    }
+    .btn-instagram:hover { opacity: 0.9; }
+
+    .btn:disabled { background: #475569 !important; cursor: not-allowed; opacity: 0.5; }
+
+    .zoom-wrapper { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #cbd5e1; padding: 4px 0; }
+    .zoom-wrapper input { flex: 1; accent-color: #2563eb; }
+    .hint { font-size: 12px; color: #94a3b8; margin-top: -4px; }
+    
+    .share-group { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>ഓപ്പറേഷൻ തൂഫാൻ മിലാദ് റാലി</h2>
+  <p class="subtitle">Upload your picture to place inside the top frame</p>
+
+  <div class="banner-wrapper">
+    <canvas id="bannerCanvas" width="800" height="1184"></canvas>
+  </div>
+
+  <div class="controls">
+    <label for="photoInput" class="btn btn-upload">
+      📁 Choose Photo
+    </label>
+    <input type="file" id="photoInput" accept="image/*">
+
+    <div class="zoom-wrapper">
+      <span>Zoom Photo:</span>
+      <input type="range" id="zoomSlider" min="0.1" max="3" step="0.01" value="1" disabled>
+    </div>
+    <span class="hint">💡 Touch or drag inside the frame to adjust photo position</span>
+
+    <div class="share-group">
+      <!-- WhatsApp Button -->
+      <button id="whatsappBtn" class="btn btn-whatsapp" disabled>
+        📲 Share to WhatsApp Status
+      </button>
+
+      <!-- Instagram Button -->
+      <button id="instaBtn" class="btn btn-instagram" disabled>
+        📸 Share to Instagram Story
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // BANNER CONFIGURATION
+  const CONFIG = {
+    frameSrc: 'banner.png', // Saved image name in local folder
+    photoBox: {
+      centerX: 400, // Top circle frame center X
+      centerY: 215, // Top circle frame center Y
+      radius: 175   // Top circle frame radius
+    }
+  };
+
+  const canvas = document.getElementById('bannerCanvas');
+  const ctx = canvas.getContext('2d');
+  const photoInput = document.getElementById('photoInput');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const whatsappBtn = document.getElementById('whatsappBtn');
+  const instaBtn = document.getElementById('instaBtn');
+
+  let frameImg = new Image();
+  let userImg = null;
+
+  let scale = 1;
+  let posX = 0;
+  let posY = 0;
+  let isDragging = false;
+  let startX, startY;
+
+  // Load Banner Overlay
+  frameImg.src = CONFIG.frameSrc;
+  frameImg.onload = () => draw();
+  frameImg.onerror = () => {
+    alert("Please ensure 'banner.png' is saved in the exact same folder as 'index.html'.");
+  };
+
+  // Handle Photo Upload
+  photoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      userImg = new Image();
+      userImg.onload = () => {
+        const diameter = CONFIG.photoBox.radius * 2;
+        scale = Math.max(diameter / userImg.width, diameter / userImg.height);
+        zoomSlider.value = scale;
+        zoomSlider.min = scale * 0.4;
+        zoomSlider.max = scale * 3;
+        
+        posX = CONFIG.photoBox.centerX - (userImg.width * scale) / 2;
+        posY = CONFIG.photoBox.centerY - (userImg.height * scale) / 2;
+
+        zoomSlider.disabled = false;
+        whatsappBtn.disabled = false;
+        instaBtn.disabled = false;
+        draw();
+      };
+      userImg.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Render Canvas Layers
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Draw Base Banner
+    if (frameImg.complete && frameImg.naturalWidth !== 0) {
+      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+    }
+
+    // 2. Clip and draw User Image inside top circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CONFIG.photoBox.centerX, CONFIG.photoBox.centerY, CONFIG.photoBox.radius, 0, Math.PI * 2);
+    ctx.clip();
+
+    if (userImg) {
+      ctx.drawImage(userImg, posX, posY, userImg.width * scale, userImg.height * scale);
+    } else {
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fill();
+      ctx.fillStyle = "#475569";
+      ctx.font = "bold 24px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Upload Photo", CONFIG.photoBox.centerX, CONFIG.photoBox.centerY);
+    }
+    ctx.restore();
+
+    // 3. Draw Inner White Frame Stroke
+    ctx.beginPath();
+    ctx.arc(CONFIG.photoBox.centerX, CONFIG.photoBox.centerY, CONFIG.photoBox.radius, 0, Math.PI * 2);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+  }
+
+  // Handle Zooming
+  zoomSlider.addEventListener('input', (e) => {
+    scale = parseFloat(e.target.value);
+    draw();
+  });
+
+  // Screen Coordinates Helper
+  function getCanvasCoordinates(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  // Drag Handlers
+  function startDrag(e) {
+    if (!userImg) return;
+    isDragging = true;
+    const coords = getCanvasCoordinates(e);
+    startX = coords.x - posX;
+    startY = coords.y - posY;
+  }
+
+  function doDrag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    const coords = getCanvasCoordinates(e);
+    posX = coords.x - startX;
+    posY = coords.y - startY;
+    draw();
+  }
+
+  function stopDrag() { isDragging = false; }
+
+  canvas.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', doDrag);
+  window.addEventListener('mouseup', stopDrag);
+
+  canvas.addEventListener('touchstart', startDrag);
+  window.addEventListener('touchmove', doDrag, { passive: false });
+  window.addEventListener('touchend', stopDrag);
+
+  // Download Fallback
+  function downloadBanner() {
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'milad-rally-poster.png';
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Mobile Web Share API Handler
+  async function shareImage(platformName) {
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'milad-rally-poster.png', { type: 'image/png' });
+
+      // If Native Web Share API is available on user device
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Milad Rally Poster',
+          text: 'Join the Milad Rally!'
+        });
+      } else {
+        // Desktop / Unsupported Fallback
+        downloadBanner();
+        setTimeout(() => {
+          alert(`Poster downloaded!\n\nOpen ${platformName} and upload the image to your status/story.`);
+        }, 300);
+      }
+    } catch (err) {
+      // User canceled share sheet or browser error
+      if (err.name !== 'AbortError') {
+        downloadBanner();
+      }
+    }
+  }
+
+  whatsappBtn.addEventListener('click', () => shareImage('WhatsApp'));
+  instaBtn.addEventListener('click', () => shareImage('Instagram'));
+</script>
+
+</body>
+</html>
